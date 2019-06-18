@@ -1,4 +1,4 @@
-pragma solidity >=0.4.21 <0.6.0;
+pragma solidity ^0.5.0
 
 import "./AccessControl.sol";
 
@@ -18,7 +18,7 @@ contract RPSCore is AccessControl {
 
     uint constant DEVELOPER_TIP_PERCENT = 5;
 
-    uint constant TIME_GAME_EXPIRE = 1 hours;
+    uint constant TIME_GAME_EXPIRE = 12 hours;
 
     address payable constant DUMMY_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
@@ -33,17 +33,25 @@ contract RPSCore is AccessControl {
         address payable addressGuest;
     }
 
-    event LogCloseGameSuccessed(uint _id, uint _valueReturn);
-    event LogCreateGameSuccessed(uint _id, uint _valuePlayerHostBid);
-    event LogJoinGameSuccessed(uint _id, address _addressHost);
-    event LogRevealGameSuccessed(uint _id,
-                                    uint _result,
-                                    address indexed _addressPlayerWin,
-                                    address indexed _addressPlayerLose,
-                                    uint _valuePlayerWin,
-                                    uint _valuePlayerLose,
-                                    uint _gesturePlayerWin,
-                                    uint _gesturePlayerLose);
+    event LogCloseGameSuccessed(address indexed _addressSender, uint _id, uint _valueReturn);
+    event LogCreateGameSuccessed(address indexed _addressSender, uint _id);
+    event LogJoinGameSuccessed(address indexed _addressSender, uint _id, address _addressHost);
+    event LogRevealGameSuccessed(address indexed _addressSender,
+                                uint _id,
+                                uint _result,
+                                address _addressPlayerWin,
+                                address _addressPlayerLose,
+                                uint _valuePlayerWin,
+                                uint _valuePlayerLose,
+                                uint _gesturePlayerWin,
+                                uint _gesturePlayerLose);
+    event LogHistory(uint _id,
+                        uint _result,
+                        address indexed _addressPlayerWin,
+                        address indexed _addressPlayerLose,
+                        uint _valuePlayerWin,
+                        uint _valuePlayerLose
+                        );
  
     uint public idCounter;
 
@@ -90,7 +98,7 @@ contract RPSCore is AccessControl {
         arrIndexAvailableGames.push(arrAllGames.length - 1);
         idToIndexAvailableGames[game.id] = arrIndexAvailableGames.length - 1;
 
-        emit LogCreateGameSuccessed(game.id, game.valueBet);
+        emit LogCreateGameSuccessed(msg.sender, game.id);
     }
 
     function joinGame(uint _id, uint _gestureGuest)
@@ -110,7 +118,7 @@ contract RPSCore is AccessControl {
         game.state = GAME_STATE_WAITING_HOST_REVEAL;
         game.timeExpire = now + TIME_GAME_EXPIRE;
 
-        emit LogJoinGameSuccessed(game.id, game.addressHost);
+        emit LogJoinGameSuccessed(msg.sender, game.id, game.addressHost);
     }
 
     function revealGameByHost(uint _id, uint _gestureHost, bytes32 _secretKey)
@@ -140,7 +148,8 @@ contract RPSCore is AccessControl {
                 sendPayment(game.addressHost, game.valueBet);
                 sendPayment(game.addressGuest, game.valueBet);
                 closeGame(_id);
-                emit LogRevealGameSuccessed(_id,
+                emit LogRevealGameSuccessed(msg.sender,
+                                            _id,
                                             result,
                                             game.addressHost,
                                             game.addressGuest,
@@ -148,6 +157,13 @@ contract RPSCore is AccessControl {
                                             0,
                                             _gestureHost, 
                                             game.gestureGuest);
+
+                emit LogHistory(_id,
+                                result,
+                                game.addressHost,
+                                game.addressGuest,
+                                0,
+                                0);
             }
             else
             {
@@ -161,14 +177,22 @@ contract RPSCore is AccessControl {
 
                     sendPayment(game.addressHost, game.valueBet * 2 - tipValue);
                     closeGame(_id);    
-                    emit LogRevealGameSuccessed(_id,
+                    emit LogRevealGameSuccessed(msg.sender,
+                                                _id,
                                                 GAME_RESULT_HOST_WIN,
                                                 game.addressHost,
                                                 game.addressGuest,
                                                 game.valueBet - tipValue,
                                                 game.valueBet,
                                                 _gestureHost, 
-                                                game.gestureGuest);        
+                                                game.gestureGuest);  
+
+                    emit LogHistory(_id,
+                                    result,
+                                    game.addressHost,
+                                    game.addressGuest,
+                                    game.valueBet - tipValue,
+                                    game.valueBet);      
                 }
                 else
                     if(result == GAME_RESULT_GUEST_WIN || result == GAME_RESULT_GUEST_WIN_BY_HOST_CHEAT) {
@@ -180,7 +204,8 @@ contract RPSCore is AccessControl {
 
                         sendPayment(game.addressGuest, game.valueBet * 2 - tipValue);
                         closeGame(_id);
-                        emit LogRevealGameSuccessed(_id,
+                        emit LogRevealGameSuccessed(msg.sender,
+                                                    _id,
                                                     result,
                                                     game.addressGuest,
                                                     game.addressHost,
@@ -188,6 +213,13 @@ contract RPSCore is AccessControl {
                                                     game.valueBet,
                                                     game.gestureGuest, 
                                                     cachedGestureHost);
+                        
+                        emit LogHistory(_id,
+                                        result,
+                                        game.addressGuest,
+                                        game.addressHost,
+                                        game.valueBet - tipValue,
+                                        game.valueBet);    
                     }
             }
         }
@@ -210,7 +242,8 @@ contract RPSCore is AccessControl {
         sendPayment(game.addressGuest, game.valueBet * 2 - tipValue);
         closeGame(_id);
 
-        emit LogRevealGameSuccessed(_id,
+        emit LogRevealGameSuccessed(msg.sender,
+                                    _id,
                                     GAME_RESULT_GUEST_WIN,
                                     game.addressGuest,
                                     game.addressHost,
@@ -231,7 +264,7 @@ contract RPSCore is AccessControl {
 
         sendPayment(game.addressHost, game.valueBet);
         closeGame(_id);
-        emit LogCloseGameSuccessed(_id, game.valueBet);
+        emit LogCloseGameSuccessed(msg.sender, _id, game.valueBet);
     }
 
     function closeGame(uint _id) private {

@@ -35,7 +35,7 @@ module.exports = {
         "m/44'/889'/0'/0/",
       ),
       network_id: "88",
-      gas: 2000000,
+      gas: 5000000,
       gasPrice: 10000000000000,
     }
   }
